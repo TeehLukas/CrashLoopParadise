@@ -1,0 +1,70 @@
+kubeProxyReplacement: true
+k8sServiceHost: localhost
+k8sServicePort: 7445
+
+routingMode: tunnel
+tunnelProtocol: vxlan
+l7Proxy: true
+
+ipam:
+  mode: kubernetes
+
+operator:
+  replicas: 1
+
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+# Ausschließlich Gateway API, kein Ingress.
+gatewayAPI:
+  enabled: true
+  gatewayClass:
+    create: "true"
+  hostNetwork:
+    enabled: true
+    nodes:
+      matchLabels: {}
+
+ingressController:
+  enabled: false
+
+envoy:
+  enabled: true
+  securityContext:
+    capabilities:
+      keepCapNetBindService: true
+      envoy:
+        - NET_ADMIN
+        - SYS_ADMIN
+        - NET_BIND_SERVICE
+
+hubble:
+  enabled: true
+  tls:
+    auto:
+      method: cronJob
+  relay:
+    enabled: true
+  ui:
+    enabled: true

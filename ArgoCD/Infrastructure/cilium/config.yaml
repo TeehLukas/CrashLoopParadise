@@ -1,0 +1,8 @@
+# Erstinstallation per Terraform (Bootstrap/cilium.tf liest Version und Values von hier),
+# danach verwaltet Argo CD die Release "cilium".
+app: cilium
+namespace: kube-system
+chart:
+  repo: https://helm.cilium.io
+  name: cilium
+  version: 1.20.5
