@@ -50,5 +50,5 @@ output "iso_url" {
 
 output "argocd_url" {
   description = "Adresse der Argo-CD-Oberfläche im Heimnetz."
-  value       = "http://${yamldecode(file("${path.module}/kubernetes/argocd/values.yaml")).global.domain}"
+  value       = "https://${yamldecode(file("${local.argocd_dir}/values.yaml")).global.domain}"
 }

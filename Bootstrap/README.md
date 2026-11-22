@@ -1,15 +1,12 @@
 # Talos-Bootstrap auf Bare Metal
 
-Terraform-Setup für einen Talos-Linux-Cluster (v1.14.6) auf eigener Hardware, ohne Proxmox oder andere Virtualisierung. Der Aufbau folgt dem Artikel [Talos, Proxmox und OpenTofu](https://blog.stonegarden.dev/articles/2024/08/talos-proxmox-tofu/): Ein `talos`-Modul erzeugt Image, Secrets, Machine-Configs, Bootstrap und Kubeconfig. Die virtuellen Maschinen des Artikels entfallen, stattdessen booten die Maschinen die Secure-Boot-ISO aus der Image Factory. Die Systemvolumes sind per TPM verschlüsselt. Cilium und Argo CD installiert Terraform per Helm-Release, danach verwaltet Argo CD Cilium.
+Terraform-Setup für einen Talos-Linux-Cluster (v1.14.6) auf eigener Hardware, ohne Proxmox oder andere Virtualisierung. Der Aufbau folgt dem Artikel [Talos, Proxmox und OpenTofu](https://blog.stonegarden.dev/articles/2024/08/talos-proxmox-tofu/): Ein `talos`-Modul erzeugt Image, Secrets, Machine-Configs, Bootstrap und Kubeconfig. Die virtuellen Maschinen des Artikels entfallen, stattdessen booten die Maschinen die Secure-Boot-ISO aus der Image Factory. Die Systemvolumes sind per TPM verschlüsselt. Cilium, das Gateway und Argo CD installiert Terraform einmalig per Helm-Release, danach verwaltet Argo CD alle drei (siehe [Übergabe an Argo CD](#übergabe-an-argo-cd)).
 
 ```
 Bootstrap/
   providers.tf, variables.tf, main.tf, outputs.tf, nodes.tfvars
-  cilium.tf                              installiert Cilium per Helm
-  argocd.tf                              installiert Argo CD per Helm
-  kubernetes/cilium/values.yaml          Cilium-Helm-Values (nur Gateway API)
-  kubernetes/argocd/values.yaml          Argo-CD-Helm-Values, HTTPRoute
-  kubernetes/gateway.yaml                Gateway cilium-gateway (HTTP + HTTPS)
+  cilium.tf                              Erstinstallation Cilium + Gateway
+  argocd.tf                              Erstinstallation Argo CD
   talos/
     providers.tf, variables.tf, image.tf, config.tf, outputs.tf
     image/schematic.yaml                 System-Extensions für die Image Factory
@@ -19,6 +16,10 @@ Bootstrap/
       worker.yaml.tftpl                  Node-Labels
       tpm-encryption.yaml                LUKS2 für STATE und EPHEMERAL, Schlüssel im TPM
       reset-*.yaml                       entfernen generierte Standardwerte vor den eigenen Patches
+ArgoCD/Infrastructure/                   Version, Values, Manifeste (von Terraform gelesen)
+  cilium/config.yaml, values.yaml        Cilium-Chart und -Values (nur Gateway API)
+  cilium/manifests/gateway.yaml          Gateway cilium-gateway (HTTP + HTTPS)
+  argocd/config.yaml, values.yaml        Argo-CD-Chart und -Values, HTTPRoute
 ```
 
 ## Hardware vorbereiten (HP EliteDesk 800 G5 Mini)
@@ -125,15 +126,15 @@ Ein Gateway bekommt von Cilium einen Service vom Typ LoadBalancer. Auf Bare Meta
 | --- | --- | --- |
 | Talos | `talos_version` | `v1.14.6` |
 | Kubernetes | `kubernetes_version` | `1.36.6` |
-| Cilium | `cilium_version` | `1.20.5` |
+| Cilium | `ArgoCD/Infrastructure/cilium/config.yaml` | `1.20.5` |
 | Gateway API | `gateway_api_version` | `v1.6.3` |
-| Argo CD (Chart `argo-cd`) | `argocd_version` | `10.18.2` (Argo CD v3.6.2) |
+| Argo CD (Chart `argo-cd`) | `ArgoCD/Infrastructure/argocd/config.yaml` | `10.18.2` (Argo CD v3.6.2) |
 
 Der Talos-Provider ist auf `0.13.0-alpha.2` gepinnt. Diese Version bringt das Talos-SDK 1.14 mit und kennt die neuen Config-Dokumente (`UnattendedInstallConfig`, `KubeExternalManifestConfig` und weitere).
 
 ## Argo CD
 
-`argocd.tf` installiert das Chart `argo-cd` in den Namespace `argocd`. Die Values in `kubernetes/argocd/values.yaml` enthalten nur die HTTPRoute. Das Gateway kommt nicht von Argo CD, sondern aus `gateway.tf` (Manifest `kubernetes/gateway.yaml`, direkt nach Cilium): Es heißt `cilium-gateway` (Kubernetes erlaubt keine Großbuchstaben in Namen) und liegt in `kube-system`. Es hat einen Listener `http` (Port 80) und einen Listener `https` (Port 443, TLS-Terminierung mit dem Secret `cilium-gateway-tls`), beide für Routen aus allen Namespaces. Wegen `gatewayAPI.hostNetwork` lauscht Envoy auf Port 80 und 443 jedes Nodes, also auch auf der VIP `192.168.10.100`. Fällt der Control-Plane-Node mit der VIP aus, übernimmt ein anderer die Adresse. Weitere Anwendungen hängen ihre HTTPRoutes an dieses Gateway. Ein zweites Gateway auf Port 80 würde im Host-Netzwerk mit dem ersten kollidieren.
+`argocd.tf` installiert das Chart `argo-cd` in den Namespace `argocd`. Die Values in `ArgoCD/Infrastructure/argocd/values.yaml` enthalten die HTTPRoute und den Login über den zentralen Dex (`ArgoCD/Infrastructure/dex`) inklusive RBAC. Das mitgelieferte Dex ist deaktiviert, der lokale `admin` bleibt als Notzugang. Das Gateway wendet `cilium.tf` beim Bootstrap direkt nach Cilium an (Manifest `ArgoCD/Infrastructure/cilium/manifests/gateway.yaml`): Es heißt `cilium-gateway` (Kubernetes erlaubt keine Großbuchstaben in Namen) und liegt in `kube-system`. Es hat einen Listener `http` (Port 80) und einen Listener `https` (Port 443, TLS-Terminierung mit dem Secret `cilium-gateway-tls`), beide für Routen aus allen Namespaces. Wegen `gatewayAPI.hostNetwork` lauscht Envoy auf Port 80 und 443 jedes Nodes, also auch auf der VIP `192.168.10.100`. Fällt der Control-Plane-Node mit der VIP aus, übernimmt ein anderer die Adresse. Weitere Anwendungen hängen ihre HTTPRoutes an dieses Gateway. Ein zweites Gateway auf Port 80 würde im Host-Netzwerk mit dem ersten kollidieren.
 
 Die Oberfläche ist unter `http://argocd.192.168.10.100.nip.io` erreichbar (`terraform output argocd_url`). nip.io ist ein öffentlicher DNS-Dienst, der die im Namen enthaltene IP zurückgibt. Einen eigenen DNS-Server oder eine Domain brauchst du dafür nicht.
 
@@ -156,17 +157,10 @@ kubectl -n argocd delete secret argocd-initial-admin-secret   # nach dem Passwor
 
 Die Verbindung ist unverschlüsseltes HTTP (`server.insecure: true`), also nur für das Heimnetz gedacht. Für HTTPS gibt es den Listener `https` am Gateway, aber beim Bootstrap noch kein Zertifikat: Das Secret `cilium-gateway-tls` fehlt, der Listener bleibt unprogrammiert und HTTP funktioniert trotzdem. Sobald Argo CD und cert-manager laufen, legst du ein `Certificate` in `kube-system` an, das das Secret `cilium-gateway-tls` erzeugt. Danach wird der HTTPS-Listener aktiv.
 
-## Cilium an Argo CD übergeben
+## Übergabe an Argo CD
 
-1. Erstelle in Argo CD eine Application mit dem Chart `cilium` aus `https://helm.cilium.io`, der Version aus `cilium_version`, Release-Name `cilium` und Ziel-Namespace `kube-system`. Binde `Bootstrap/kubernetes/cilium/values.yaml` über eine zweite Git-Quelle mit `ref: values` und dem Pfad `$values/Bootstrap/kubernetes/cilium/values.yaml` ein.
-2. Prüfe den Diff und synchronisiere zunächst ohne Pruning.
-3. Ersetze anschließend die Ressource `helm_release.cilium` in `cilium.tf` durch den folgenden Block. Prüfe im Plan, dass Terraform die Release nur aus dem State austrägt, und führe den Apply aus. Ein Helm-Uninstall würde das laufende CNI entfernen.
+Terraform ist nur für die Erstinstallation zuständig. `helm_release.cilium`, `kubectl_manifest.cilium_gateway` und `helm_release.argocd` haben `lifecycle { ignore_changes = all }`: Terraform installiert sie auf einem neuen Cluster und rührt sie danach nie wieder an. Version, Values und Gateway liest Terraform aus den Tool-Ordnern `ArgoCD/Infrastructure/cilium` und `ArgoCD/Infrastructure/argocd`. Dieselben Dateien rollt danach das ApplicationSet `infrastructure` als Apps `cilium-in-cluster` und `argocd-in-cluster` aus (Release-Namen `cilium` und `argocd`, wie bei Terraform). Es gibt also nur eine Quelle.
 
-```hcl
-removed {
-  from = helm_release.cilium
-  lifecycle {
-    destroy = false
-  }
-}
-```
+Änderungen an Cilium, Gateway oder Argo CD (auch Versions-Updates) laufen ab dann nur noch über Git und Argo CD. Ein `terraform apply` zeigt dafür keinen Diff.
+
+Hubble erzeugt seine TLS-Zertifikate per Job/CronJob im Cluster (`hubble.tls.auto.method: cronJob`). Die Helm-Standardmethode würde bei jedem Rendern neue Zertifikate erzeugen, Argo CD wäre dauerhaft OutOfSync.

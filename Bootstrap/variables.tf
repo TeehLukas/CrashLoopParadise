@@ -125,11 +125,6 @@ variable "wipe_install_disk" {
   default     = true
 }
 
-variable "cilium_version" {
-  description = "Cilium-Chart-Version, die Terraform beim Bootstrap per Helm installiert."
-  type        = string
-  default     = "1.20.5"
-}
 
 variable "gateway_api_version" {
   description = "Version der Gateway-API-CRDs, die Talos beim Bootstrap lädt. Cilium 1.20 ist gegen v1.6.3 getestet."
@@ -156,10 +151,4 @@ variable "dhcp_ips" {
     )
     error_message = "Jede DHCP-Adresse muss eine eindeutige IPv4-Adresse sein."
   }
-}
-
-variable "argocd_version" {
-  description = "Argo-CD-Chart-Version (argo-helm), die Terraform per Helm installiert."
-  type        = string
-  default     = "10.18.2"
 }
