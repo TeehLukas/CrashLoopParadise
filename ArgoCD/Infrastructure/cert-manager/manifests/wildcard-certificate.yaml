@@ -1,0 +1,18 @@
+# Wildcard-Zertifikat für das Gateway cilium-gateway (Listener https, Bootstrap/kubernetes/gateway.yaml).
+# Das Gateway erwartet das Secret cilium-gateway-tls in kube-system.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-k8s-cakiroglu-me
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  secretName: cilium-gateway-tls
+  dnsNames:
+    - k8s.cakiroglu.me
+    - "*.k8s.cakiroglu.me"
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt

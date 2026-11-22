@@ -10,7 +10,11 @@ tasks:
     dir: ArgoCD/bootstrap
     vars:
       ONEPASSWORD_TOKEN:
-        sh: '[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && printf %s "$OP_SERVICE_ACCOUNT_TOKEN" || gum input </dev/tty --password --header "1Password Service-Account-Token"'
+        # --char-limit 0: gum kürzt sonst auf 400 Zeichen, SA-Tokens sind deutlich länger
+        sh: |
+          { [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && printf %s "$OP_SERVICE_ACCOUNT_TOKEN" \
+            || gum input </dev/tty --password --char-limit 0 --header "1Password Service-Account-Token"; } \
+            | tr -d '[:space:]'
       REPO:
         sh: |
           default=$(git remote get-url origin 2>/dev/null | sed -E 's#^git@([^:]+):#https://\1/#')
@@ -20,6 +24,14 @@ tasks:
     preconditions:
       - sh: '[ -n "{{.ONEPASSWORD_TOKEN}}" ] && [ -n "{{.REPO}}" ] && [ -n "{{.APPSETS_PATH}}" ]'
         msg: "Token, Repo-URL und AppSets-Pfad sind Pflicht"
+      # SA-Token = "ops_" + base64(JSON) -> Präfix prüfen und Payload muss als JSON dekodierbar sein
+      - sh: |
+          t='{{.ONEPASSWORD_TOKEN}}'
+          case "$t" in ops_*) ;; *) exit 1 ;; esac
+          p="${t#ops_}"
+          while [ $(( ${#p} % 4 )) -ne 0 ]; do p="$p="; done
+          printf %s "$p" | tr '_-' '/+' | base64 -d 2>/dev/null | jq -e . >/dev/null 2>&1
+        msg: "Token ist kein gültiger 1Password-Service-Account-Token (muss mit ops_ beginnen und vollständig sein – evtl. abgeschnitten?)"
     cmds:
       - cmd: >-
           kcl run
