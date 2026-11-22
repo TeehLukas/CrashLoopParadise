@@ -1,0 +1,65 @@
+# Generisch: rollt jedes <infrastructure-path>/<tool>/config.yaml auf alle Cluster
+# mit dem Label infrastructure=true aus.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: infrastructure
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - clusters:
+              selector:
+                matchLabels:
+                  infrastructure: "true"
+          - git:
+              repoURL: '{{ .metadata.annotations.repo }}'
+              revision: '{{ .metadata.annotations.revision }}'
+              files:
+                - path: '{{ index .metadata.annotations "infrastructure-path" }}/*/config.yaml'
+  template:
+    metadata:
+      name: '{{ .app }}-{{ .nameNormalized }}'
+    spec:
+      project: default
+      destination:
+        server: '{{ .server }}'
+        namespace: '{{ .namespace }}'
+      sources:
+        # 1) Upstream-Helm-Chart
+        - repoURL: '{{ .chart.repo }}'
+          chart: '{{ .chart.name }}'
+          targetRevision: '{{ .chart.version }}'
+          helm:
+            releaseName: '{{ .app }}'
+            ignoreMissingValueFiles: true
+            valueFiles:
+              - '$values/{{ .path.path }}/values.yaml'
+              # optionaler Override pro Cluster: values.<cluster>.yaml
+              - '$values/{{ .path.path }}/values.{{ .nameNormalized }}.yaml'
+        # 2) Git-Repo als Referenz für die Values
+        - repoURL: '{{ .metadata.annotations.repo }}'
+          targetRevision: '{{ .metadata.annotations.revision }}'
+          ref: values
+        # 3) Eigene Manifeste des Tools, rekursiv
+        - repoURL: '{{ .metadata.annotations.repo }}'
+          targetRevision: '{{ .metadata.annotations.revision }}'
+          path: '{{ .path.path }}/manifests'
+          directory:
+            recurse: true
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 3m
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

@@ -1,0 +1,31 @@
+# Gemeinsames Gateway für alle Anwendungen. Cilium bindet die Listener im Host-Netzwerk
+# auf Port 80 und 443 jedes Nodes (gatewayAPI.hostNetwork), also auch auf der VIP.
+#
+# Das TLS-Secret existiert beim Bootstrap noch nicht. Der HTTPS-Listener bleibt bis dahin
+# unprogrammiert (ResolvedRefs=False), der HTTP-Listener funktioniert trotzdem. Das Secret
+# `cilium-gateway-tls` legt später cert-manager an (Certificate in kube-system).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cilium-gateway
+  namespace: kube-system
+spec:
+  gatewayClassName: cilium
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      protocol: HTTPS
+      port: 443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: cilium-gateway-tls
+      allowedRoutes:
+        namespaces:
+          from: All

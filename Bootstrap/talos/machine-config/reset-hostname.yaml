@@ -1,0 +1,4 @@
+# Talos generiert standardmäßig `auto: stable`. Das schließt einen festen Hostnamen aus.
+apiVersion: v1alpha1
+kind: HostnameConfig
+$patch: delete

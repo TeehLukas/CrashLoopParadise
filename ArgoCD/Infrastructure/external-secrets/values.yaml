@@ -1,0 +1,2 @@
+# Helm-Values für external-secrets
+installCRDs: true

@@ -1,0 +1,41 @@
+apiVersion: v1alpha1
+kind: UnattendedInstallConfig
+installer:
+  image: ${jsonencode(installer_image)}
+provisioning:
+  diskSelector:
+    match: >-
+      disk.dev_path == ${jsonencode(node.install_disk)}
+  wipe: ${wipe_disk}
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+hostname: ${jsonencode(hostname)}
+%{ if node.role != "worker" ~}
+---
+apiVersion: v1alpha1
+kind: Layer2VIPConfig
+name: ${jsonencode(vip)}
+link: ${jsonencode(node.interface)}
+%{ endif ~}
+---
+apiVersion: v1alpha1
+kind: LinkConfig
+name: ${jsonencode(node.interface)}
+addresses:
+  - address: "${node.ip}/${network.prefix_length}"
+routes:
+  - gateway: "${network.gateway}"
+---
+apiVersion: v1alpha1
+kind: ResolverConfig
+nameservers:
+%{ for server in network.nameservers ~}
+  - address: "${server}"
+%{ endfor ~}
+hostDNS:
+  forwardKubeDNSToHost: false
+---
+apiVersion: v1alpha1
+kind: KubePrismConfig
+port: 7445

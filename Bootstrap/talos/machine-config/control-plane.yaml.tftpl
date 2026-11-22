@@ -1,0 +1,23 @@
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+labels:
+  node-role.kubernetes.io/control-plane: ""
+%{ for key, value in node.labels ~}
+  ${jsonencode(key)}: ${jsonencode(value)}
+%{ endfor ~}
+---
+# Cilium ersetzt Flannel und kube-proxy. Ohne KubeProxyConfig-Dokument wäre kube-proxy
+# standardmäßig an, ein Löschen reicht also nicht.
+apiVersion: v1alpha1
+kind: KubeProxyConfig
+enabled: false
+---
+apiVersion: v1alpha1
+kind: KubeFlannelCNIConfig
+$patch: delete
+---
+# Gateway-API-CRDs für Cilium: Talos lädt sie beim Bootstrap, bevor Cilium startet.
+apiVersion: v1alpha1
+kind: KubeExternalManifestConfig
+name: gateway-api
+url: ${gateway_api_url}

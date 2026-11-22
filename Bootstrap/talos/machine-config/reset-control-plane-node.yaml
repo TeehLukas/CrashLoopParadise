@@ -1,0 +1,6 @@
+# Entfernt die generierten Standardwerte (u. a. den PreferNoSchedule-Taint),
+# damit Control Planes auch Anwendungs-Pods ausführen. Das Label setzt
+# control-plane.yaml.tftpl anschließend neu.
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+$patch: delete

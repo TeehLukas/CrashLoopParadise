@@ -1,0 +1,20 @@
+# LUKS2 für die Systemvolumes. Talos erzeugt den Schlüssel selbst und versiegelt ihn im TPM
+# (PCR 7 für den Secure-Boot-Zustand plus signierte PCR-11-Policy für die Boot-Komponenten).
+# Longhorn liegt unter /var/lib/longhorn auf EPHEMERAL und ist damit mitverschlüsselt.
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: STATE
+encryption:
+  provider: luks2
+  keys:
+    - slot: 0
+      tpm: {}
+---
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+encryption:
+  provider: luks2
+  keys:
+    - slot: 0
+      tpm: {}
