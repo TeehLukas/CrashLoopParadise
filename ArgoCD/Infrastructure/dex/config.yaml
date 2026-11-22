@@ -1,0 +1,6 @@
+app: dex
+namespace: dex
+chart:
+  repo: https://charts.dexidp.io
+  name: dex
+  version: 0.26.0

@@ -1,0 +1,46 @@
+rbac:
+  create: true
+  createClusterScoped: true
+
+envFrom:
+  - secretRef:
+      name: dex-secrets
+
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: cilium-gateway
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - dex.k8s.cakiroglu.me
+
+config:
+  issuer: https://dex.k8s.cakiroglu.me
+
+  storage:
+    type: kubernetes
+    config:
+      inCluster: true
+
+  oauth2:
+
+    passwordConnector: local
+    skipApprovalScreen: true
+
+  enablePasswordDB: true
+
+  staticPasswords:
+    - email: lukas.cakiroglu@gmail.com
+      username: lukas
+      userID: 6f1c8a2e-4b7d-4c1a-9e3f-2d5b8a7c1e90
+      hashFromEnv: DEX_PASSWORD_HASH_LUKAS
+      groups:
+        - admins
+
+  staticClients:
+    - id: argocd
+      name: Argo CD
+      secretEnv: DEX_CLIENT_SECRET_ARGOCD
+      redirectURIs:
+        - https://argocd.k8s.cakiroglu.me/auth/callback
