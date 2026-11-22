@@ -19,21 +19,6 @@ config:
 clusterRoleBinding:
   create: false
 
-# Plugins: Im Cluster-Betrieb kann Headlamp nicht über die Web-UI installieren, das kann nur
-# die Desktop-App. Der Sidecar lädt die Plugins von Artifact Hub (Pod braucht Internet) und
-# installiert bei Änderungen an der Liste nach.
-pluginsManager:
-  enabled: true
-  version: 0.1.1 # @headlamp-k8s/pluginctl
-  configContent: |
-    plugins:
-      - name: headlamp_argocd
-        source: https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_argocd
-        version: 0.1.0-alpha
-    installOptions:
-      parallel: true
-      maxConcurrent: 2
-
 httpRoute:
   enabled: true
   parentRefs:
