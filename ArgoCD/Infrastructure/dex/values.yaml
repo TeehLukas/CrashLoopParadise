@@ -44,3 +44,8 @@ config:
       secretEnv: DEX_CLIENT_SECRET_ARGOCD
       redirectURIs:
         - https://argocd.k8s.cakiroglu.me/auth/callback
+    - id: headlamp
+      name: Headlamp
+      secretEnv: DEX_CLIENT_SECRET_HEADLAMP
+      redirectURIs:
+        - https://headlamp.k8s.cakiroglu.me/oidc-callback

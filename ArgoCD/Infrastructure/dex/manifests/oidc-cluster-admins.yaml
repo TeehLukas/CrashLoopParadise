@@ -1,0 +1,15 @@
+# Dex-Gruppe "admins" bekommt cluster-admin für Logins direkt gegen den kube-apiserver
+# (z.B. Headlamp). Der Präfix "oidc:" kommt aus der KubeAuthenticationConfig in
+# Bootstrap/talos/machine-config/control-plane.yaml.tftpl.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:admins

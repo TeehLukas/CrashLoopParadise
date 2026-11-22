@@ -1,0 +1,29 @@
+# OIDC-Konfiguration für Headlamp (values.yaml: config.oidc.externalSecret).
+# Quelle: 1Password-Vault "Kubernetes", Item "dex", Feld headlamp-client-secret
+# (dasselbe Feld nutzt Dex für den Client "headlamp", manifests/dex-secrets.yaml im dex-Ordner).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: headlamp-oidc
+  namespace: headlamp
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: headlamp-oidc
+    template:
+      engineVersion: v2
+      data:
+        OIDC_CLIENT_ID: headlamp
+        OIDC_CLIENT_SECRET: '{{ .headlampClientSecret | trim }}'
+        OIDC_ISSUER_URL: https://dex.k8s.cakiroglu.me
+        OIDC_SCOPES: profile,email,groups
+        OIDC_CALLBACK_URL: https://headlamp.k8s.cakiroglu.me/oidc-callback
+  data:
+    - secretKey: headlampClientSecret
+      remoteRef:
+        key: dex/headlamp-client-secret

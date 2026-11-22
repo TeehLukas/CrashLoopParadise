@@ -1,0 +1,29 @@
+# Helm-Values für Headlamp unter https://headlamp.k8s.cakiroglu.me
+#
+# Login über Dex (Client "headlamp"). Headlamp reicht das ID-Token des Benutzers an den
+# kube-apiserver weiter, Rechte kommen also aus Kubernetes-RBAC des Benutzers:
+# - der API-Server vertraut Dex über KubeAuthenticationConfig
+#   (Bootstrap/talos/machine-config/control-plane.yaml.tftpl)
+# - Gruppe oidc:admins -> cluster-admin (ArgoCD/Infrastructure/dex/manifests/oidc-cluster-admins.yaml)
+
+config:
+  oidc:
+    secret:
+      create: false
+    externalSecret:
+      enabled: true
+      name: headlamp-oidc
+      hasScopes: true
+    callbackURL: https://headlamp.k8s.cakiroglu.me/oidc-callback
+
+clusterRoleBinding:
+  create: false
+
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: cilium-gateway
+      namespace: kube-system
+      sectionName: https
+  hostnames:
+    - headlamp.k8s.cakiroglu.me

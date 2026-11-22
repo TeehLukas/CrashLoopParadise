@@ -1,0 +1,6 @@
+app: headlamp
+namespace: headlamp
+chart:
+  repo: https://kubernetes-sigs.github.io/headlamp/
+  name: headlamp
+  version: 0.46.0
