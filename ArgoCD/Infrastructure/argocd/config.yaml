@@ -1,0 +1,8 @@
+# Erstinstallation per Terraform (Bootstrap/argocd.tf liest Version und Values von hier),
+# danach verwaltet Argo CD sich selbst (Release "argocd").
+app: argocd
+namespace: argocd
+chart:
+  repo: https://argoproj.github.io/argo-helm
+  name: argo-cd
+  version: 10.18.2

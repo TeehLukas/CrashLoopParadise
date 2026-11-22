@@ -1,0 +1,36 @@
+global:
+  domain: argocd.k8s.cakiroglu.me
+
+# Login über den zentralen Dex (ArgoCD/Infrastructure/dex), nicht über das mitgelieferte Dex.
+dex:
+  enabled: false
+
+configs:
+  params:
+    # TLS endet nicht am Argo-CD-Server, der Gateway-Listener spricht HTTP.
+    server.insecure: true
+  cm:
+    url: https://argocd.k8s.cakiroglu.me
+    # Client-Secret kommt aus dem Secret argocd-oidc (ExternalSecret in ArgoCD/Infrastructure/dex).
+    # Der lokale admin-Account bleibt als Notzugang aktiv, falls Dex nicht erreichbar ist.
+    oidc.config: |
+      name: Dex
+      issuer: https://dex.k8s.cakiroglu.me
+      clientID: argocd
+      clientSecret: $argocd-oidc:clientSecret
+      requestedScopes: ["openid", "profile", "email", "groups"]
+  rbac:
+    scopes: "[groups, email]"
+    policy.default: ""
+    policy.csv: |
+      g, admins, role:admin
+
+server:
+  httproute:
+    enabled: true
+    parentRefs:
+      - name: cilium-gateway
+        namespace: kube-system
+        sectionName: https
+    hostnames:
+      - argocd.k8s.cakiroglu.me
