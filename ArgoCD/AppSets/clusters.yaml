@@ -1,35 +1,24 @@
-# Eigene App für die Cluster-Verwaltung: synchronisiert die Cluster-Secrets aus
-# <clusters-path> in den argocd-Namespace des Management-Clusters.
-# Neuer Cluster = eine Secret-Datei in Clusters/ mit
-#   Label argocd.argoproj.io/secret-type: cluster, infrastructure: "true"
-#   Annotationen repo, revision, infrastructure-path (wie im bootstrap.yaml)
-# Der Management-Cluster selbst steht nur im bootstrap.yaml.
+# Synchronisiert die Cluster-Secrets aus ArgoCD/Clusters in den argocd-Namespace.
+# Bewusst eine Application und kein ApplicationSet: Ein Cluster-Generator bräuchte
+# ein Cluster-Secret, das erst diese App anlegt.
+#
+# Neuer Cluster = neue Datei in ArgoCD/Clusters (siehe in-cluster.yaml). Was dort landet,
+# steuern Labels (<stack>: "true"/"false") und Annotationen (repo, revision, <stack>-path).
 apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
+kind: Application
 metadata:
   name: clusters
   namespace: argocd
 spec:
-  goTemplate: true
-  goTemplateOptions: ["missingkey=error"]
-  generators:
-    - clusters:
-        selector:
-          matchLabels:
-            management: "true"
-  template:
-    metadata:
-      name: 'clusters'
-    spec:
-      project: default
-      destination:
-        server: '{{ .server }}'
-        namespace: argocd
-      source:
-        repoURL: '{{ .metadata.annotations.repo }}'
-        targetRevision: '{{ .metadata.annotations.revision }}'
-        path: '{{ index .metadata.annotations "clusters-path" }}'
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  source:
+    repoURL: https://github.com/TeehLukas/CrashLoopParadise.git
+    targetRevision: main
+    path: ArgoCD/Clusters
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true

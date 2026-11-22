@@ -1,102 +1,30 @@
 version: "3"
 
-# Globale Taskfile. Aufruf aus dem Repo-Root:  task bootstrap
-# Eingaben werden per gum abgefragt, sofern nicht als Umgebungsvariable gesetzt
-# (z.B. inline: BOOTSTRAP_REPO=... task bootstrap). Benötigt: task, gum, kcl, kubectl.
-
-vars:
-  # Dynamische Variablen: `sh` wird beim Task-Start ausgewertet und fragt per gum nach.
-  # Vorbelegung aus der Umgebungsvariable bzw. dem Default; mit Enter bestätigen.
-  # Ist die Variable gesetzt oder gibt es kein Terminal (/dev/tty), wird nicht gefragt.
-  BOOTSTRAP_REPO:
-    sh: |
-      has_tty() { : </dev/tty; } 2>/dev/null
-      if [ -n "${BOOTSTRAP_REPO:-}" ] || ! has_tty; then printf '%s' "${BOOTSTRAP_REPO:-}"
-      else gum input </dev/tty --header "Git-Repo-URL" --placeholder "https://github.com/<user>/<repo>.git"; fi
-  BOOTSTRAP_REVISION:
-    sh: |
-      has_tty() { : </dev/tty; } 2>/dev/null
-      if [ -n "${BOOTSTRAP_REVISION:-}" ] || ! has_tty; then printf '%s' "${BOOTSTRAP_REVISION:-main}"
-      else gum input </dev/tty --header "Revision" --value main; fi
-  BOOTSTRAP_INFRASTRUCTURE_PATH:
-    sh: |
-      has_tty() { : </dev/tty; } 2>/dev/null
-      if [ -n "${BOOTSTRAP_INFRASTRUCTURE_PATH:-}" ] || ! has_tty; then printf '%s' "${BOOTSTRAP_INFRASTRUCTURE_PATH:-ArgoCD/Infrastructure}"
-      else gum input </dev/tty --header "Infrastructure-Pfad" --value ArgoCD/Infrastructure; fi
-  BOOTSTRAP_CLUSTER_NAME:
-    sh: |
-      has_tty() { : </dev/tty; } 2>/dev/null
-      if [ -n "${BOOTSTRAP_CLUSTER_NAME:-}" ] || ! has_tty; then printf '%s' "${BOOTSTRAP_CLUSTER_NAME:-in-cluster}"
-      else gum input </dev/tty --header "Cluster-Name" --value in-cluster; fi
-  BOOTSTRAP_CLUSTER_SERVER:
-    sh: |
-      has_tty() { : </dev/tty; } 2>/dev/null
-      if [ -n "${BOOTSTRAP_CLUSTER_SERVER:-}" ] || ! has_tty; then printf '%s' "${BOOTSTRAP_CLUSTER_SERVER:-https://kubernetes.default.svc}"
-      else gum input </dev/tty --header "Cluster-Server" --value https://kubernetes.default.svc; fi
-  # Token: aus OP_SERVICE_ACCOUNT_TOKEN, sonst maskierte Eingabe.
-  ONEPASSWORD_TOKEN:
-    sh: |
-      has_tty() { : </dev/tty; } 2>/dev/null
-      if [ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]; then printf '%s' "$OP_SERVICE_ACCOUNT_TOKEN"
-      elif has_tty; then gum input </dev/tty --password --header "1Password Service-Account-Token"; fi
+# Aufruf aus dem Repo-Root nach `terraform apply`:  task bootstrap
+# Fragt per gum ab, sofern nicht als Umgebungsvariable gesetzt (OP_SERVICE_ACCOUNT_TOKEN,
+# BOOTSTRAP_REPO, BOOTSTRAP_APPSETS_PATH). Benötigt: task, gum, kcl, kubectl, KUBECONFIG.
 
 tasks:
   bootstrap:
-    desc: Kompletter Bootstrap in fester Reihenfolge (secrets, repo, root)
-    cmds:
-      - task: bootstrap:secrets
-      - task: bootstrap:repo
-      - task: bootstrap:root
-
-  bootstrap:secrets:
-    desc: 1) Namespace und 1Password-Token für den External-Secrets-ClusterSecretStore
+    desc: External-Secrets-Token, Repo-Secret und Root-Application anwenden
     dir: ArgoCD/bootstrap
+    vars:
+      ONEPASSWORD_TOKEN:
+        sh: '[ -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] && printf %s "$OP_SERVICE_ACCOUNT_TOKEN" || gum input </dev/tty --password --header "1Password Service-Account-Token"'
+      REPO:
+        sh: |
+          default=$(git remote get-url origin 2>/dev/null | sed -E 's#^git@([^:]+):#https://\1/#')
+          [ -n "${BOOTSTRAP_REPO:-}" ] && printf %s "$BOOTSTRAP_REPO" || gum input </dev/tty --header "Git-Repo-URL" --value "$default"
+      APPSETS_PATH:
+        sh: '[ -n "${BOOTSTRAP_APPSETS_PATH:-}" ] && printf %s "$BOOTSTRAP_APPSETS_PATH" || gum input </dev/tty --header "Pfad der AppSets" --value ArgoCD/AppSets'
     preconditions:
-      - sh: '[ -n "{{.ONEPASSWORD_TOKEN}}" ]'
-        msg: "1Password-Token fehlt"
+      - sh: '[ -n "{{.ONEPASSWORD_TOKEN}}" ] && [ -n "{{.REPO}}" ] && [ -n "{{.APPSETS_PATH}}" ]'
+        msg: "Token, Repo-URL und AppSets-Pfad sind Pflicht"
     cmds:
-      - cmd: kcl run -D part=secrets -D onepassword_token="{{.ONEPASSWORD_TOKEN}}" | kubectl apply -f -
-        silent: true # verhindert, dass das Token im Log erscheint
-
-  bootstrap:repo:
-    desc: 2) Cluster-Secret mit Repo, Revision und Pfaden
-    dir: ArgoCD/bootstrap
-    preconditions:
-      - sh: '[ -n "{{.BOOTSTRAP_REPO}}" ]'
-        msg: "BOOTSTRAP_REPO fehlt"
-    cmds:
-      - >-
-        kcl run -D part=repo
-        -D repo="{{.BOOTSTRAP_REPO}}"
-        -D revision="{{.BOOTSTRAP_REVISION}}"
-        -D infrastructure_path="{{.BOOTSTRAP_INFRASTRUCTURE_PATH}}"
-        -D cluster_name="{{.BOOTSTRAP_CLUSTER_NAME}}"
-        -D cluster_server="{{.BOOTSTRAP_CLUSTER_SERVER}}"
-        | kubectl apply -f -
-
-  bootstrap:root:
-    desc: 3) Root-Application, zeigt auf ArgoCD/AppSets
-    dir: ArgoCD/bootstrap
-    preconditions:
-      - sh: '[ -n "{{.BOOTSTRAP_REPO}}" ]'
-        msg: "BOOTSTRAP_REPO fehlt"
-    cmds:
-      - >-
-        kcl run -D part=root
-        -D repo="{{.BOOTSTRAP_REPO}}"
-        -D revision="{{.BOOTSTRAP_REVISION}}"
-        -D cluster_server="{{.BOOTSTRAP_CLUSTER_SERVER}}"
-        | kubectl apply -f -
-
-  bootstrap:test-render:
-    desc: Rendert alles ohne Apply (Token wird nicht ausgegeben, wenn er leer ist -> Dummy)
-    dir: ArgoCD/bootstrap
-    cmds:
-      - >-
-        kcl run
-        -D repo="{{.BOOTSTRAP_REPO}}"
-        -D revision="{{.BOOTSTRAP_REVISION}}"
-        -D infrastructure_path="{{.BOOTSTRAP_INFRASTRUCTURE_PATH}}"
-        -D cluster_name="{{.BOOTSTRAP_CLUSTER_NAME}}"
-        -D cluster_server="{{.BOOTSTRAP_CLUSTER_SERVER}}"
-        -D onepassword_token="dummy"
+      - cmd: >-
+          kcl run
+          -D onepassword_token="{{.ONEPASSWORD_TOKEN}}"
+          -D repo="{{.REPO}}"
+          -D appsets_path="{{.APPSETS_PATH}}"
+          | kubectl apply -f -
+        silent: true # Token nicht im Log

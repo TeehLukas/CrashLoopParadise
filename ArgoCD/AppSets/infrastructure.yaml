@@ -1,5 +1,16 @@
 # Generisch: rollt jedes <infrastructure-path>/<tool>/config.yaml auf alle Cluster
-# mit dem Label infrastructure=true aus.
+# mit dem Label infrastructure=true aus. Neues Tool = neuer Ordner, kein neues AppSet.
+#
+# Pro Cluster (Secret in ArgoCD/Clusters): Label infrastructure, Annotationen repo,
+# revision, infrastructure-path. Ein anderer Pfad ergibt ein anderes Tool-Set.
+#
+# Pro Tool:
+#   config.yaml          app, namespace, chart.{repo,name,version} (Pflicht)
+#   values.yaml          optional, values.<cluster>.yaml als Override
+#   manifests/           Pflicht (notfalls nur .gitkeep), rekursiv angewendet
+#
+# Ohne Finalizer: Fällt ein Cluster/Tool weg, wird nur die Application gelöscht,
+# die Ressourcen bleiben im Cluster (Schutz für kritische Infrastruktur).
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:

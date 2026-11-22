@@ -1,61 +1,57 @@
-# Rendert die manuellen Argo-CD-Bootstrap-Manifeste.
+# Rendert die manuellen Argo-CD-Bootstrap-Manifeste. Aufruf nur über die Taskfile im Repo-Root:  task bootstrap
 #
-# Wird ausschließlich über die Taskfile im Repo-Root ausgeführt:  task bootstrap
+# 1) Namespace + 1Password-Token für External Secrets
+# 2) Repository-Secret für Argo CD
+# 3) Root-Application -> <appsets_path> (ApplicationSets und Apps, u.a. "clusters")
 #
-# Ablauf danach: Application "appsets" -> ArgoCD/AppSets/ (infrastructure, clusters)
+# Alles Weitere (Cluster-Secrets mit Labels/Pfaden) liegt in Git unter ArgoCD/Clusters.
 import manifests
 
-# --- Eingaben (-D key=value) -------------------------------------------------
 _repo = option("repo")
+_appsets_path = option("appsets_path") or "ArgoCD/AppSets"
 _revision = option("revision") or "main"
-_root = option("root_path") or "ArgoCD"
-_infrastructure_path = option("infrastructure_path") or "${_root}/Infrastructure"
-_clusters_path = option("clusters_path") or "${_root}/Clusters"
-_appsets_path = option("appsets_path") or "${_root}/AppSets"
-_cluster_name = option("cluster_name") or "in-cluster"
-_cluster_server = option("cluster_server") or "https://kubernetes.default.svc"
 _onepassword_token = option("onepassword_token")
-# Teilmenge rendern: secrets | repo | root | full (Standard)
-_part = option("part") or "full"
 
-assert _repo or _part == "secrets", "repo fehlt (BOOTSTRAP_REPO)"
-assert _onepassword_token or _part in ["repo", "root"], "onepassword_token fehlt (OP_SERVICE_ACCOUNT_TOKEN)"
+assert _repo, "repo fehlt"
+assert _onepassword_token, "onepassword_token fehlt"
 
-# Cluster-Secret des Management-Clusters. Repo, Branch und Pfade lesen alle ApplicationSets von hier.
-_cluster_secret = {
+_namespace = {
+    apiVersion = "v1"
+    kind = "Namespace"
+    metadata.name = "external-secrets"
+}
+
+# Zugang für den ClusterSecretStore (Infrastructure/external-secrets/manifests).
+_onepassword_secret = {
+    apiVersion = "v1"
+    kind = "Secret"
+    metadata = {name = "onepassword-token", namespace = "external-secrets"}
+    type = "Opaque"
+    stringData.token = _onepassword_token
+}
+
+_repo_secret = {
     apiVersion = "v1"
     kind = "Secret"
     metadata = {
-        name = "cluster-in-cluster"
+        name = "repo-bootstrap"
         namespace = "argocd"
-        labels = {
-            "argocd.argoproj.io/secret-type" = "cluster"
-            infrastructure = "true"  # rollt alle Tools unter infrastructure-path aus
-            management = "true"  # verwaltet die Cluster-Secrets aus clusters-path
-        }
-        annotations = {
-            repo = _repo
-            revision = _revision
-            "infrastructure-path" = _infrastructure_path
-            "clusters-path" = _clusters_path
-        }
+        labels = {"argocd.argoproj.io/secret-type" = "repository"}
     }
     type = "Opaque"
     stringData = {
-        name = _cluster_name
-        server = _cluster_server
-        config = '{"tlsClientConfig": {"insecure": false}}'
+        type = "git"
+        url = _repo
     }
 }
 
-# Initiale Application, zeigt auf die ApplicationSets im Git.
-_appsets = {
+_root = {
     apiVersion = "argoproj.io/v1alpha1"
     kind = "Application"
-    metadata = {name = "appsets", namespace = "argocd"}
+    metadata = {name = "root", namespace = "argocd"}
     spec = {
         project = "default"
-        destination = {server = _cluster_server, namespace = "argocd"}
+        destination = {server = "https://kubernetes.default.svc", namespace = "argocd"}
         source = {
             repoURL = _repo
             targetRevision = _revision
@@ -65,29 +61,5 @@ _appsets = {
     }
 }
 
-# Vorbedingung für den 1Password-ClusterSecretStore (external-secrets/manifests).
-_namespace = {
-    apiVersion = "v1"
-    kind = "Namespace"
-    metadata.name = "external-secrets"
-}
-
-_onepassword_secret = {
-    apiVersion = "v1"
-    kind = "Secret"
-    metadata = {name = "onepassword-token", namespace = "external-secrets"}
-    type = "Opaque"
-    stringData.token = _onepassword_token
-}
-
-_parts = {
-    # 1) Secret-Store-Zugang für External Secrets
-    secrets = [_namespace, _onepassword_secret]
-    # 2) Secret mit Repo/Git-Infos (Cluster-Secret)
-    repo = [_cluster_secret]
-    # 3) Root-Application auf ArgoCD/AppSets
-    root = [_appsets]
-    full = [_namespace, _onepassword_secret, _cluster_secret, _appsets]
-}
-
-manifests.yaml_stream(_parts[_part])
+# Reihenfolge = Apply-Reihenfolge
+manifests.yaml_stream([_namespace, _onepassword_secret, _repo_secret, _root])

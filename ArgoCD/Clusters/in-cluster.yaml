@@ -1,0 +1,21 @@
+# Management-Cluster (Argo CD selbst). Enthält keine Zugangsdaten, darf also ins Git.
+# Externe Cluster brauchen Credentials in stringData.config: dafür ein ExternalSecret
+# aus 1Password mit denselben Labels/Annotationen im target.template.metadata.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-in-cluster
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+    # Stacks an/aus. Ein Stack = ein ApplicationSet in ArgoCD/AppSets.
+    infrastructure: "true"
+  annotations:
+    repo: https://github.com/TeehLukas/CrashLoopParadise.git
+    revision: main
+    infrastructure-path: ArgoCD/Infrastructure
+type: Opaque
+stringData:
+  name: in-cluster
+  server: https://kubernetes.default.svc
+  config: '{"tlsClientConfig": {"insecure": false}}'
