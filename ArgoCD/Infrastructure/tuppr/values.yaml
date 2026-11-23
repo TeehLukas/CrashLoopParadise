@@ -1,0 +1,9 @@
+# Helm-Values für tuppr (Talos- und Kubernetes-Upgrades per CR, manifests/)
+#
+# Der Controller spricht über die Talos-API mit den Nodes. Dafür muss der Namespace
+# system-upgrade dort freigegeben sein (kubernetesTalosAPIAccess mit os:admin,
+# Bootstrap/talos/machine-config/talos-api-access.yaml). Der Namespace hier und dort
+# muss exakt übereinstimmen.
+
+controller:
+  logLevel: info

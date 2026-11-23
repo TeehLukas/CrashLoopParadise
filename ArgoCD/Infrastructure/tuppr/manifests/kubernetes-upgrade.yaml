@@ -1,0 +1,12 @@
+# Kubernetes-Upgrade (ohne Reboot): version anheben. Nur eine KubernetesUpgrade pro Cluster.
+# Danach kubernetes_version in Bootstrap/variables.tf nachziehen.
+apiVersion: tuppr.home-operations.com/v1alpha1
+kind: KubernetesUpgrade
+metadata:
+  name: kubernetes
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  kubernetes:
+    # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
+    version: v1.36.6

@@ -1,0 +1,14 @@
+# Talos-Upgrade aller Nodes: version anheben, tuppr rollt Node für Node aus (mit Reboot).
+# Installer-Image und Schematic (Extensions, Secure Boot) übernimmt tuppr vom jeweiligen Node.
+# Talos-Minor-Versionen nur einzeln hochziehen, tuppr prüft den Upgrade-Pfad nicht.
+# Danach talos_version in Bootstrap/variables.tf nachziehen, sonst setzt Terraform zurück.
+apiVersion: tuppr.home-operations.com/v1alpha1
+kind: TalosUpgrade
+metadata:
+  name: cluster
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  talos:
+    # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
+    version: v1.14.6
