@@ -4,4 +4,4 @@ namespace: system-upgrade
 chart:
   repo: ghcr.io/home-operations/charts
   name: tuppr
-  version: 0.1.27
+  version: 0.5.14

@@ -153,7 +153,7 @@ variable "kubelet_serving_cert_approver_version" {
 variable "kubernetes_version" {
   description = "Kubernetes-Version für den Bootstrap."
   type        = string
-  default     = "1.36.6"
+  default     = "1.37.2"
 }
 
 variable "dhcp_ips" {
