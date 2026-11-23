@@ -36,6 +36,14 @@ nameservers:
 hostDNS:
   forwardKubeDNSToHost: false
 ---
+# Kubelet holt sein Serving-Zertifikat per CSR von der Cluster-CA statt es selbst zu signieren.
+# Nötig für metrics-server; genehmigt werden die CSRs vom kubelet-serving-cert-approver
+# (control-plane.yaml.tftpl).
+apiVersion: v1alpha1
+kind: KubeletConfig
+config:
+  serverTLSBootstrap: true
+---
 apiVersion: v1alpha1
 kind: KubePrismConfig
 port: 7445

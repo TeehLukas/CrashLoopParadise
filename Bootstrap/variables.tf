@@ -132,6 +132,18 @@ variable "gateway_api_version" {
   default     = "v1.6.3"
 }
 
+variable "metrics_server_version" {
+  description = "Version des metrics-server (components.yaml), den Talos beim Bootstrap lädt."
+  type        = string
+  default     = "v0.9.1"
+}
+
+variable "kubelet_serving_cert_approver_version" {
+  description = "Version des kubelet-serving-cert-approver. Genehmigt die Serving-Zertifikate der Kubelets, die metrics-server braucht."
+  type        = string
+  default     = "v0.12.1"
+}
+
 variable "kubernetes_version" {
   description = "Kubernetes-Version für den Bootstrap."
   type        = string

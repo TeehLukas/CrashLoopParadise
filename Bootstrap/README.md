@@ -118,6 +118,8 @@ Hinweise:
 
 Der Cluster nutzt ausschließlich Gateway API, einen Ingress-Controller gibt es nicht (`ingressController.enabled: false`). Talos lädt über ein einziges `KubeExternalManifestConfig` in der Control-Plane-Config die `standard-install.yaml` des Gateway-API-Releases (alle CRDs des Standard-Channels). Die Version steuert `gateway_api_version` (Standard `v1.6.3`, die Version, gegen die Cilium 1.20 getestet ist). Die Control Planes brauchen dafür HTTPS-Zugriff auf `github.com`. Terraform wartet nicht auf die CRDs, Kubernetes reconciled das selbst.
 
+Genauso lädt Talos `metrics-server` (`components.yaml`) und den `kubelet-serving-cert-approver`. metrics-server prüft die Serving-Zertifikate der Kubelets. Deshalb holen sich die Kubelets ihr Zertifikat per CSR von der Cluster-CA (`KubeletConfig` mit `serverTLSBootstrap: true` in `common.yaml.tftpl`), und der Approver genehmigt diese CSRs, sofern die SANs zum Node passen. Ohne Approver bleiben die CSRs offen, dann schlagen `kubectl logs`/`exec` und metrics-server fehl.
+
 Ein Gateway bekommt von Cilium einen Service vom Typ LoadBalancer. Auf Bare Metal braucht der eine Adressquelle, etwa Cilium LB-IPAM mit L2-Announcements. Pool und Policy gehören zu deinem Netz und sind hier nicht enthalten.
 
 ## Versionen
@@ -128,6 +130,8 @@ Ein Gateway bekommt von Cilium einen Service vom Typ LoadBalancer. Auf Bare Meta
 | Kubernetes | `kubernetes_version` | `1.36.6` |
 | Cilium | `ArgoCD/Infrastructure/cilium/config.yaml` | `1.20.5` |
 | Gateway API | `gateway_api_version` | `v1.6.3` |
+| metrics-server | `metrics_server_version` | `v0.9.1` |
+| kubelet-serving-cert-approver | `kubelet_serving_cert_approver_version` | `v0.12.1` |
 | Argo CD (Chart `argo-cd`) | `ArgoCD/Infrastructure/argocd/config.yaml` | `10.18.2` (Argo CD v3.6.2) |
 
 Der Talos-Provider ist auf `0.13.0-alpha.2` gepinnt. Diese Version bringt das Talos-SDK 1.14 mit und kennt die neuen Config-Dokumente (`UnattendedInstallConfig`, `KubeExternalManifestConfig` und weitere).

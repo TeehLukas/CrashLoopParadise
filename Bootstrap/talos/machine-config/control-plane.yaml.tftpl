@@ -22,6 +22,16 @@ kind: KubeExternalManifestConfig
 name: gateway-api
 url: ${gateway_api_url}
 ---
+apiVersion: v1alpha1
+kind: KubeExternalManifestConfig
+name: kubelet-serving-cert-approver
+url: ${kubelet_serving_cert_approver_url}
+---
+apiVersion: v1alpha1
+kind: KubeExternalManifestConfig
+name: metrics-server
+url: ${metrics_server_url}
+---
 # kube-apiserver akzeptiert ID-Tokens von Dex (ArgoCD/Infrastructure/dex), z.B. für Headlamp.
 # Benutzer = E-Mail, Gruppen aus dem Claim "groups", beide mit Präfix "oidc:".
 # Ist Dex nicht erreichbar, startet der API-Server trotzdem; nur OIDC-Logins schlagen fehl.

@@ -29,8 +29,10 @@ locals {
         ) : [
         file("${path.module}/machine-config/reset-control-plane-node.yaml"),
         templatefile("${path.module}/machine-config/control-plane.yaml.tftpl", {
-          node            = node
-          gateway_api_url = "https://github.com/kubernetes-sigs/gateway-api/releases/download/${var.cluster.gateway_api_version}/standard-install.yaml"
+          node                              = node
+          gateway_api_url                   = "https://github.com/kubernetes-sigs/gateway-api/releases/download/${var.cluster.gateway_api_version}/standard-install.yaml"
+          kubelet_serving_cert_approver_url = "https://raw.githubusercontent.com/alex1989hu/kubelet-serving-cert-approver/${var.cluster.kubelet_serving_cert_approver_version}/deploy/standalone-install.yaml"
+          metrics_server_url                = "https://github.com/kubernetes-sigs/metrics-server/releases/download/${var.cluster.metrics_server_version}/components.yaml"
         }),
       ],
       [templatefile("${path.module}/machine-config/common.yaml.tftpl", {

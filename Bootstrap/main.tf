@@ -12,6 +12,9 @@ module "talos" {
     talos_version       = var.talos_version
     kubernetes_version  = var.kubernetes_version
     gateway_api_version = var.gateway_api_version
+
+    metrics_server_version                = var.metrics_server_version
+    kubelet_serving_cert_approver_version = var.kubelet_serving_cert_approver_version
   }
 
   install = {

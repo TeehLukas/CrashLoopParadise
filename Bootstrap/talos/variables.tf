@@ -7,6 +7,9 @@ variable "cluster" {
     talos_version       = string
     kubernetes_version  = string
     gateway_api_version = string
+
+    metrics_server_version                = string
+    kubelet_serving_cert_approver_version = string
   })
 }
 
