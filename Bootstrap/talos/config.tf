@@ -28,6 +28,8 @@ locals {
         ] : []
         ) : [
         file("${path.module}/machine-config/reset-control-plane-node.yaml"),
+        # Nur auf Control Planes erlaubt; Worker erreicht tuppr über deren apid-Proxy.
+        file("${path.module}/machine-config/talos-api-access.yaml"),
         templatefile("${path.module}/machine-config/control-plane.yaml.tftpl", {
           node                              = node
           gateway_api_url                   = "https://github.com/kubernetes-sigs/gateway-api/releases/download/${var.cluster.gateway_api_version}/standard-install.yaml"

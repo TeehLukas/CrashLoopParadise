@@ -7,6 +7,7 @@ Bootstrap/
   providers.tf, variables.tf, main.tf, outputs.tf, nodes.tfvars
   cilium.tf                              Erstinstallation Cilium + Gateway
   argocd.tf                              Erstinstallation Argo CD
+  onepassword.tf                         Kubeconfig als Secure Note in 1Password
   talos/
     providers.tf, variables.tf, image.tf, config.tf, outputs.tf
     image/schematic.yaml                 System-Extensions für die Image Factory
@@ -88,6 +89,13 @@ Reihenfolge beim Apply:
 6. Argo CD per Helm installieren, samt HTTPRoute.
 
 Terraform schreibt `talosconfig`, `kubeconfig` und die Machine-Configs nach `output/` mit Dateimodus 0600. State, gespeicherte Pläne und `output/` enthalten Zugangsdaten und sind nicht eingecheckt.
+
+Zusätzlich legt `onepassword.tf` die Kubeconfig als Secure Note `kubeconfig-<cluster_name>` im 1Password-Vault `Kubernetes` ab (Variable `onepassword_vault`). Terraform liest dafür den Service-Account-Token aus `OP_SERVICE_ACCOUNT_TOKEN`. Der Service Account braucht Schreibrechte auf den Vault:
+
+```sh
+export OP_SERVICE_ACCOUNT_TOKEN=ops_...
+op read op://Kubernetes/kubeconfig-CrashLoopParadise/notesPlain > ~/.kube/config
+```
 
 ```sh
 export KUBECONFIG=$PWD/output/kubeconfig

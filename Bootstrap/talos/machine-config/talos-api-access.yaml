@@ -1,0 +1,11 @@
+# Talos-API-Zugriff aus Kubernetes für tuppr (ArgoCD/Infrastructure/tuppr), nur auf Control Planes
+# (Talos lehnt das Feature auf Workern ab). Worker erreicht tuppr über den apid der Control Planes.
+# Gibt es in Talos 1.14 noch nicht als eigenes Dokument, daher im v1alpha1-Format.
+machine:
+  features:
+    kubernetesTalosAPIAccess:
+      enabled: true
+      allowedRoles:
+        - os:admin
+      allowedKubernetesNamespaces:
+        - system-upgrade

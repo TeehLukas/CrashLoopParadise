@@ -18,8 +18,15 @@ terraform {
       source  = "alekc/kubectl"
       version = "~> 3.0.1"
     }
+    onepassword = {
+      source  = "1Password/onepassword"
+      version = "~> 3.4.1"
+    }
   }
 }
+
+# Token aus OP_SERVICE_ACCOUNT_TOKEN, nicht im Code.
+provider "onepassword" {}
 
 provider "helm" {
   kubernetes = {

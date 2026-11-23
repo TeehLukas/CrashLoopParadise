@@ -4,6 +4,12 @@ variable "cluster_name" {
   default     = "CrashLoopParadise"
 }
 
+variable "onepassword_vault" {
+  description = "Name des 1Password-Vaults, in den Terraform die Kubeconfig schreibt."
+  type        = string
+  default     = "Kubernetes"
+}
+
 variable "nodes" {
   description = "Talos-Nodes nach stabilem Namen mit Rolle, statischer IPv4-Adresse und Installationsdisk."
   type = map(object({
