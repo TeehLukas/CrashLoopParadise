@@ -127,7 +127,7 @@ Ein Gateway bekommt von Cilium einen Service vom Typ LoadBalancer. Auf Bare Meta
 | Komponente | Variable | Standard |
 | --- | --- | --- |
 | Talos | `talos_version` | `v1.14.6` |
-| Kubernetes | `kubernetes_version` | `1.36.6` |
+| Kubernetes | `kubernetes_version` | `1.37.2` |
 | Cilium | `ArgoCD/Infrastructure/cilium/config.yaml` | `1.20.5` |
 | Gateway API | `gateway_api_version` | `v1.6.3` |
 | metrics-server | `metrics_server_version` | `v0.9.1` |
