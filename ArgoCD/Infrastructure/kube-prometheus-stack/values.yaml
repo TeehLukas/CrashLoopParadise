@@ -1,0 +1,67 @@
+# Helm-Values für kube-prometheus-stack. 
+
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    retention: 30d
+    retentionSize: 18GB
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: linstor
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi
+
+grafana:
+  env:
+    GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"
+  envFromSecret: grafana-oidc
+
+  grafana.ini:
+    server:
+      root_url: https://grafana.k8s.cakiroglu.me
+    auth:
+      disable_login_form: true
+    auth.basic:
+      enabled: false
+    auth.generic_oauth:
+      enabled: true
+      name: Dex
+      auto_login: true
+      client_id: grafana
+      scopes: openid profile email groups
+      auth_url: https://dex.k8s.cakiroglu.me/auth
+      token_url: https://dex.k8s.cakiroglu.me/token
+      api_url: https://dex.k8s.cakiroglu.me/userinfo
+      use_pkce: true
+      allow_sign_up: true
+      login_attribute_path: preferred_username
+      groups_attribute_path: groups
+      allow_assign_grafana_admin: true
+      role_attribute_strict: true
+      role_attribute_path: contains(groups[*], 'admins') && 'GrafanaAdmin' || 'Viewer'
+
+  route:
+    main:
+      enabled: true
+      hostnames:
+        - grafana.k8s.cakiroglu.me
+      parentRefs:
+        - name: cilium-gateway
+          namespace: kube-system
+          sectionName: https

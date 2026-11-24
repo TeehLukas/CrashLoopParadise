@@ -1,0 +1,8 @@
+# Prometheus, Alertmanager, Grafana, node-exporter und kube-state-metrics.
+# Grafana unter https://grafana.k8s.cakiroglu.me (HTTPRoute am cilium-gateway).
+app: kube-prometheus-stack
+namespace: monitoring
+chart:
+  repo: https://prometheus-community.github.io/helm-charts
+  name: kube-prometheus-stack
+  version: 93.1.1

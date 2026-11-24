@@ -1,0 +1,25 @@
+# Client-Secret des Dex-Clients "grafana" (values.yaml: grafana.envFromSecret).
+# Quelle: 1Password-Vault "kubernetes", Item "dex", Feld grafana-client-secret
+# (dasselbe Feld nutzt Dex für den Client "grafana", manifests/dex-secrets.yaml im dex-Ordner).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-oidc
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: grafana-oidc
+    template:
+      engineVersion: v2
+      data:
+        GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: '{{ .grafanaClientSecret | trim }}'
+  data:
+    - secretKey: grafanaClientSecret
+      remoteRef:
+        key: dex/grafana-client-secret
