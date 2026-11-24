@@ -1,0 +1,3 @@
+# Helm-Values für snapshot-controller
+installCRDs: true
+keepCRDs: true # CRDs (und damit alle VolumeSnapshots) überleben ein Löschen der App

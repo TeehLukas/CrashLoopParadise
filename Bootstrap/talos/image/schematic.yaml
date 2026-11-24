@@ -6,3 +6,4 @@ customization:
       - siderolabs/iscsi-tools
       - siderolabs/nfs-utils
       - siderolabs/util-linux-tools
+      - siderolabs/drbd

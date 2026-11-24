@@ -1,0 +1,30 @@
+# Standard-StorageClass: 2 Replicas auf verschiedenen Nodes, LINSTOR ergänzt bei Bedarf
+# automatisch einen Diskless-Tiebreaker für das DRBD-Quorum.
+# Parameter einer StorageClass sind unveränderlich. Für andere Werte eine neue Klasse anlegen.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: linstor
+  annotations:
+    argocd.argoproj.io/sync-wave: "1" # wird vom Webhook des Operators validiert
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: linstor.csi.linbit.com
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+parameters:
+  linstor.csi.linbit.com/storagePool: nvme-thin
+  linstor.csi.linbit.com/placementCount: "2"
+  csi.storage.k8s.io/fstype: ext4
+---
+# Snapshots (LVM-Thin) für VolumeSnapshots; CRDs und Controller aus snapshot-controller/.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: linstor
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    snapshot.storage.kubernetes.io/is-default-class: "true"
+driver: linstor.csi.linbit.com
+deletionPolicy: Delete

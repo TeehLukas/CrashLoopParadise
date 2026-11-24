@@ -1,0 +1,55 @@
+# Anpassungen für Talos, nach https://piraeus.io/docs/stable/how-to/talos/
+# - DRBD kommt aus der Talos-Extension, die Module lädt Talos (Bootstrap/talos/machine-config/drbd.yaml).
+#   Der drbd-module-loader (baut aus Kernel-Headern) und alles rund um systemd entfallen.
+# - /etc/lvm ist auf Talos read-only. Die LVM-Konfiguration kommt aus der ConfigMap,
+#   Metadaten-Backups landen unter /var/etc/lvm.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: talos-lvm-config
+  namespace: piraeus-datastore
+data:
+  lvm.conf: |
+    backup {
+      backup = 1
+      archive = 1
+    }
+---
+apiVersion: piraeus.io/v1
+kind: LinstorSatelliteConfiguration
+metadata:
+  name: talos-loader-override
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  podTemplate:
+    spec:
+      initContainers:
+        - name: drbd-shutdown-guard
+          $patch: delete
+        - name: drbd-module-loader
+          $patch: delete
+      volumes:
+        - name: run-systemd-system
+          $patch: delete
+        - name: run-drbd-shutdown-guard
+          $patch: delete
+        - name: systemd-bus-socket
+          $patch: delete
+        - name: lib-modules
+          $patch: delete
+        - name: usr-src
+          $patch: delete
+        - name: etc-lvm
+          hostPath: null
+          configMap:
+            name: talos-lvm-config
+        - name: etc-lvm-backup
+          hostPath:
+            path: /var/etc/lvm/backup
+            type: DirectoryOrCreate
+        - name: etc-lvm-archive
+          hostPath:
+            path: /var/etc/lvm/archive
+            type: DirectoryOrCreate

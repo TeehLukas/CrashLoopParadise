@@ -1,0 +1,11 @@
+# Helm-Values für den Piraeus Operator. LinstorCluster, Satellites, StorageClass und
+# VolumeSnapshotClass liegen in manifests/.
+installCRDs: true
+
+# Das Webhook-Zertifikat erzeugt sonst das Chart per lookup/genSelfSignedCert. Argo CD rendert
+# ohne Clusterzugriff, das Zertifikat wäre bei jedem Rendern neu und die App dauerhaft OutOfSync.
+# Stattdessen stellt cert-manager es über das Issuer in manifests/issuer.yaml aus.
+tls:
+  certManagerIssuerRef:
+    name: piraeus-selfsigned
+    kind: Issuer

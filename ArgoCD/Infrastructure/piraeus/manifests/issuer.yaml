@@ -1,0 +1,11 @@
+# Selbstsigniertes Zertifikat für den Validating Webhook des Operators (values.yaml: tls).
+# cert-manager trägt das CA-Bundle per cert-manager.io/inject-ca-from in den Webhook ein.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: piraeus-selfsigned
+  namespace: piraeus-datastore
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  selfSigned: {}

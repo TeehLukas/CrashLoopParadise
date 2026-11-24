@@ -22,6 +22,11 @@ locals {
     for name, node in var.nodes : name => concat(
       [file("${path.module}/machine-config/reset-hostname.yaml")],
       var.install.tpm_encryption ? [file("${path.module}/machine-config/tpm-encryption.yaml")] : [],
+      # Piraeus/LINSTOR: DRBD-Module und Partition für den Storage-Pool, auf allen Nodes.
+      [
+        file("${path.module}/machine-config/drbd.yaml"),
+        file("${path.module}/machine-config/volumes.yaml"),
+      ],
       node.role == "worker" ? (
         length(node.labels) > 0 ? [
           templatefile("${path.module}/machine-config/worker.yaml.tftpl", { node = node })

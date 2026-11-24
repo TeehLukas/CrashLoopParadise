@@ -1,0 +1,10 @@
+# Die CRs validiert der Webhook des Operators. Sync-Wave 1: Argo CD wendet sie erst an, wenn
+# das Chart (Wave 0) gesund ist, der Operator also läuft.
+apiVersion: piraeus.io/v1
+kind: LinstorCluster
+metadata:
+  name: linstorcluster
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec: {}

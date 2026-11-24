@@ -1,0 +1,19 @@
+# Storage-Pool auf der Raw-Partition, die Talos anlegt (Bootstrap/talos/machine-config/volumes.yaml).
+# Der Satellite legt Volume Group und Thin Pool beim ersten Start selbst an. Fehlt die Partition
+# auf einem Node (EPHEMERAL noch nicht neu angelegt), bleibt der Pool dort fehlerhaft, bis sie da ist.
+apiVersion: piraeus.io/v1
+kind: LinstorSatelliteConfiguration
+metadata:
+  name: storage-pool
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  storagePools:
+    - name: nvme-thin
+      lvmThinPool:
+        volumeGroup: linstor_vg
+        thinPool: thinpool
+      source:
+        hostDevices:
+          - /dev/disk/by-partlabel/r-linstor

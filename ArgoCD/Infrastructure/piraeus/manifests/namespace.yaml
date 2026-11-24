@@ -1,0 +1,12 @@
+# Talos erzwingt standardmäßig Pod Security "baseline". Die Satellites brauchen privilegierte
+# Pods (DRBD, LVM, hostNetwork), CreateNamespace=true setzt keine Labels.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: piraeus-datastore
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

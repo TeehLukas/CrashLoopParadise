@@ -1,0 +1,26 @@
+# Aufteilung der Systemdisk: EPHEMERAL (/var: etcd, Images, emptyDir) auf 120 GiB begrenzt,
+# der Rest wird eine unformatierte Partition für den LINSTOR-Storage-Pool
+# (/dev/disk/by-partlabel/r-linstor, ArgoCD/Infrastructure/piraeus).
+#
+# Bestehende Nodes übernehmen das erst nach einem Reset von EPHEMERAL, siehe README
+# ("Storage mit Piraeus"). Die Verschlüsselung von EPHEMERAL setzt tpm-encryption.yaml,
+# Talos führt beide Dokumente zusammen.
+#
+# r-linstor ist bewusst nicht verschlüsselt: Mit LVM auf einem LUKS-Raw-Volume hängt in
+# Talos 1.14 jeder Shutdown minutenlang (siderolabs/talos#14105). Nach dem Fix kann hier
+# ein encryption-Block wie in tpm-encryption.yaml ergänzt werden, das erfordert aber ein
+# Neuanlegen des Volumes.
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+provisioning:
+  maxSize: 120GiB
+---
+apiVersion: v1alpha1
+kind: RawVolumeConfig
+name: linstor
+provisioning:
+  diskSelector:
+    match: system_disk
+  minSize: 100GiB
+  grow: true

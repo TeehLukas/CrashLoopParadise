@@ -1,0 +1,13 @@
+# Kernel-Module für Piraeus/LINSTOR (ArgoCD/Infrastructure/piraeus). Das DRBD-Modul kommt aus der
+# Extension siderolabs/drbd (image/schematic.yaml), der Satellite kann auf Talos selbst keine
+# Module laden. Alles, was LINSTOR braucht, muss deshalb hier stehen.
+# Gibt es in Talos 1.14 noch nicht als eigenes Dokument, daher im v1alpha1-Format.
+machine:
+  kernel:
+    modules:
+      - name: drbd
+        parameters:
+          - usermode_helper=disabled
+      - name: drbd_transport_tcp
+      # LVM-Thin-Pool des LINSTOR-Storage-Pools (auch für Snapshots)
+      - name: dm-thin-pool

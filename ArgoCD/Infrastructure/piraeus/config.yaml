@@ -1,0 +1,10 @@
+# Piraeus Operator (LINSTOR + DRBD), repliziertes Block-Storage auf den NVMe der Nodes.
+# OCI-Registry: repoURL ohne Schema, Argo CD zieht das Chart dann per OCI.
+# Talos-Voraussetzungen (DRBD-Extension, Kernel-Module, Partition r-linstor) stehen in
+# Bootstrap/talos, Ablauf siehe Bootstrap/README.md ("Storage mit Piraeus").
+app: piraeus
+namespace: piraeus-datastore
+chart:
+  repo: ghcr.io/piraeusdatastore/piraeus-operator
+  name: piraeus
+  version: 2.12.1

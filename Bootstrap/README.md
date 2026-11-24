@@ -16,6 +16,8 @@ Bootstrap/
       control-plane.yaml.tftpl           Cilium statt Flannel/kube-proxy, Gateway-API-CRDs
       worker.yaml.tftpl                  Node-Labels
       tpm-encryption.yaml                LUKS2 für STATE und EPHEMERAL, Schlüssel im TPM
+      volumes.yaml                       EPHEMERAL auf 120 GiB, Rest als Raw-Partition r-linstor
+      drbd.yaml                          Kernel-Module für DRBD/LINSTOR (Piraeus)
       reset-*.yaml                       entfernen generierte Standardwerte vor den eigenen Patches
 ArgoCD/Infrastructure/                   Version, Values, Manifeste (von Terraform gelesen)
   cilium/config.yaml, values.yaml        Cilium-Chart und -Values (nur Gateway API)
@@ -50,12 +52,12 @@ Die Verschlüsselung steuern drei Variablen:
 | `tpm_encryption` | `true` | LUKS2 für `STATE` und `EPHEMERAL`, setzt `secure_boot` voraus |
 | `wipe_install_disk` | `true` | Löscht die Installationsdisk, also die alten Windows-Partitionen. Wirkt nur bei der Installation |
 
-Talos erzeugt den LUKS2-Schlüssel selbst und versiegelt ihn im TPM. Er ist an PCR 7 (Secure-Boot-Zustand) und eine signierte PCR-11-Policy (gemessene Boot-Komponenten) gebunden. Longhorn legt seine Daten unter `/var/lib/longhorn` auf `EPHEMERAL` ab, sie sind also mitverschlüsselt.
+Talos erzeugt den LUKS2-Schlüssel selbst und versiegelt ihn im TPM. Er ist an PCR 7 (Secure-Boot-Zustand) und eine signierte PCR-11-Policy (gemessene Boot-Komponenten) gebunden. Die LINSTOR-Partition `r-linstor` (Piraeus) ist nicht verschlüsselt, siehe [Storage mit Piraeus](#storage-mit-piraeus).
 
 Worauf du achten solltest:
 
 - Mache Upgrades immer mit dem `installer-secureboot`-Image (Ausgabe `installer_image`). Dank der signierten PCR-11-Policy wird die Platte nach einem Upgrade weiter entsperrt.
-- Secure Boot ausschalten, die Schlüssel löschen oder das TPM leeren lässt die Platte verschlossen, der Node muss dann neu installiert werden. Bei Kubernetes-Nodes ist das meist in Ordnung, weil Longhorn die Daten repliziert. Einen zweiten Schlüssel-Slot (zum Beispiel `nodeID`) als Notzugang habe ich bewusst weggelassen, er schwächt die Verschlüsselung deutlich.
+- Secure Boot ausschalten, die Schlüssel löschen oder das TPM leeren lässt die Platte verschlossen, der Node muss dann neu installiert werden. Bei Kubernetes-Nodes ist das meist in Ordnung, weil LINSTOR die Volumes auf andere Nodes repliziert. Einen zweiten Schlüssel-Slot (zum Beispiel `nodeID`) als Notzugang habe ich bewusst weggelassen, er schwächt die Verschlüsselung deutlich.
 
 ## Ablauf
 
@@ -66,7 +68,7 @@ terraform apply -var-file=nodes.tfvars -var 'dhcp_ips={}' -target=module.talos.d
 terraform output -raw iso_url
 ```
 
-1. Passe `talos/image/schematic.yaml` an. Aktiv sind `i915` (integrierte Grafik), `intel-ucode`, `iscsi-tools` und `util-linux-tools` (Longhorn) sowie `nfs-utils`. Die Extensions landen im Installer-Image und in der ISO.
+1. Passe `talos/image/schematic.yaml` an. Aktiv sind `i915` (integrierte Grafik), `intel-ucode`, `drbd` (Piraeus/LINSTOR), `iscsi-tools`, `util-linux-tools` und `nfs-utils`. Die Extensions landen im Installer-Image und in der ISO.
 2. Hole die ISO-URL mit den Befehlen oben. Der gezielte Apply registriert das Schematic in der Image Factory und braucht noch keine Maschinen. Schreibe die ISO auf einen USB-Stick, boote jede Maschine nach der Hardware-Vorbereitung davon und notiere ihre DHCP-Adresse. Der Terraform-Rechner braucht Zugriff auf die Talos-API der Nodes (TCP 50000, DHCP- und statische Adressen) und auf die Kubernetes-API (VIP, TCP 6443).
 3. Passe `nodes.tfvars` an. Der Map-Schlüssel ist zugleich der Hostname, `cp-01` ergibt also den Hostnamen `cp-01`. Setze pro Maschine `role = "control"` oder `"worker"`, statische `ip`, `interface` und `install_disk`. Genau ein Control-Node bekommt `bootstrap = true`. Optional setzt `labels` Node-Labels, zum Beispiel `topology.kubernetes.io/zone`. Prüfe den Disk-Pfad auf jeder Maschine vor dem Apply.
 4. Setze in `static_network` Präfix, Default-Gateway und DNS. Reserviere die statischen Adressen und eine freie `vip` im gemeinsamen Layer-2-Netz der Control Planes. Der Kubernetes-Endpunkt ist `https://<vip>:6443`. Ein expliziter `cluster_endpoint` überschreibt das.
@@ -121,6 +123,101 @@ Hinweise:
 - Control Planes immer in ungerader Zahl halten (3 oder 5), sonst verliert etcd bei einem Ausfall das Quorum.
 - Eine bestehende `ip` oder `install_disk` nachträglich zu ändern installiert nicht neu. Dafür muss der Node zurückgesetzt und neu von der ISO gebootet werden.
 - Einen Node entfernst du erst mit `talosctl reset` (und bei Control Planes mit `etcd remove-member`) und danach durch Löschen des Eintrags in `nodes`. Nur den Eintrag zu löschen lässt den Node weiterlaufen.
+
+## Storage mit Piraeus
+
+Persistente Volumes kommen von [Piraeus](https://piraeus.io) (LINSTOR mit DRBD). Jedes Volume liegt als LVM-Thin-Volume auf zwei Nodes und wird per DRBD synchron repliziert. Fällt ein Node aus, läuft der Pod auf einem anderen weiter.
+
+Aufteilung der 512-GB-NVMe je Node (`talos/machine-config/volumes.yaml`):
+
+| Volume | Größe | Inhalt |
+| --- | --- | --- |
+| `EPHEMERAL` | max. 120 GiB, LUKS2/TPM | `/var`: etcd, Container-Images, emptyDir, Logs |
+| `r-linstor` | Rest (ca. 350 GiB), unverschlüsselt | LVM-Thin-Pool `linstor_vg/thinpool`, Storage-Pool `nvme-thin` |
+
+`r-linstor` ist bewusst nicht verschlüsselt. Mit LVM auf einem LUKS-Raw-Volume hängt in Talos 1.14 jeder Shutdown minutenlang ([siderolabs/talos#14105](https://github.com/siderolabs/talos/issues/14105)). Das trifft auch jedes tuppr-Upgrade.
+
+Beteiligte Dateien:
+
+- Talos: Extension `drbd` in `talos/image/schematic.yaml`, Kernel-Module in `talos/machine-config/drbd.yaml`, Partitionen in `talos/machine-config/volumes.yaml`
+- Argo CD: `ArgoCD/Infrastructure/snapshot-controller` (Snapshot-CRDs und Controller) und `ArgoCD/Infrastructure/piraeus` (Operator, `LinstorCluster`, Talos-Anpassungen, Storage-Pool, StorageClass `linstor` als Default, VolumeSnapshotClass `linstor`)
+
+Auf einem neu installierten Cluster ist alles ab der Installation aktiv. Bei bestehenden Nodes legt Talos das neue Layout nicht von selbst an: `EPHEMERAL` belegt die ganze Disk und schrumpft nicht. Für die Umstellung brauchst du deshalb die folgenden Schritte.
+
+### Umstellung bestehender Nodes
+
+Das Einzige, was dabei verloren gehen kann, ist das, was auf `EPHEMERAL` liegt: etcd, hostPath- und emptyDir-Daten. Es gibt noch keine PersistentVolumes. Solange die Control Planes nacheinander und mit gesundem etcd umgestellt werden, behält etcd das Quorum.
+
+```sh
+cd Bootstrap
+export TALOSCONFIG=$PWD/output/talosconfig
+```
+
+**0. etcd sichern** (zur Sicherheit, falls das Quorum doch verloren geht):
+
+```sh
+talosctl -n 192.168.10.101 etcd snapshot output/etcd-$(date +%F).db
+```
+
+**1. Neues Installer-Image erzeugen**, ohne die Machine-Configs anzufassen (wie beim ISO-Schritt):
+
+```sh
+terraform apply -var-file=nodes.tfvars -target=module.talos.data.talos_image_factory_urls.this
+IMAGE=$(terraform output -raw installer_image)   # metal-installer-secureboot mit neuer Schematic-ID
+```
+
+Die Secure-Boot-Images aus der Image Factory sind mit demselben Schlüssel signiert wie bisher. Die TPM-Entsperrung bleibt deshalb gültig.
+
+**2. Nodes auf das neue Image upgraden**, einen nach dem anderen, Worker zuerst. Die Talos-Version bleibt gleich, nur die Extensions ändern sich. tuppr währenddessen nicht anstoßen, also die Version in `talos-upgrade.yaml` nicht ändern. Danach übernimmt tuppr die neue Schematic von den Nodes.
+
+```sh
+for ip in 192.168.10.104 192.168.10.105 192.168.10.102 192.168.10.103 192.168.10.101; do
+  talosctl -n $ip upgrade --image "$IMAGE" --wait || break
+  talosctl -n $ip get extensions | grep drbd || break
+  talosctl -n 192.168.10.101 etcd status || break
+done
+```
+
+**3. Machine-Configs anwenden** (Kernel-Module, Volume-Layout):
+
+```sh
+terraform plan -var-file=nodes.tfvars -out=bootstrap.tfplan
+terraform apply bootstrap.tfplan
+talosctl -n 192.168.10.104 read /sys/module/drbd/parameters/usermode_helper   # disabled
+```
+
+Auf bestehenden Nodes passiert dabei noch nichts an den Partitionen: `r-linstor` wartet, bis Platz frei ist.
+
+**4. `EPHEMERAL` neu anlegen**, einen Node nach dem anderen, `worker-01` zuerst als Test. `--graceful` cordoned und drained den Node, Control Planes verlassen dabei sauber etcd und treten nach dem Neustart wieder bei.
+
+```sh
+ip=192.168.10.104
+talosctl -n $ip reset --system-labels-to-wipe EPHEMERAL --graceful --reboot --wait
+talosctl -n $ip get volumestatus EPHEMERAL r-linstor   # EPHEMERAL ~120 GiB, r-linstor ready
+kubectl get node worker-01                              # Ready
+kubectl uncordon worker-01                              # falls noch cordoned
+```
+
+Erst wenn auf `worker-01` beide Volumes stimmen, geht es mit `worker-02` weiter. Danach folgen die Control Planes in der Reihenfolge `controlplane-02`, `controlplane-03`, `controlplane-01`. Vor jedem Control Plane muss etcd 3 gesunde Member haben:
+
+```sh
+talosctl -n 192.168.10.101 etcd members
+talosctl -n 192.168.10.101,192.168.10.102,192.168.10.103 etcd status
+```
+
+Sprich die Nodes dabei immer per Node-IP an, nicht über die VIP. Die VIP wandert während des Resets auf einen anderen Control Plane.
+
+Legt der Reset `EPHEMERAL` nicht kleiner an, bleibt nur die Neuinstallation des Nodes: `talosctl reset --graceful --reboot` (löscht auch STATE), danach DHCP-Adresse unter `dhcp_ips` eintragen und `terraform apply -var-file=nodes.tfvars -replace='module.talos.talos_machine_configuration_apply.maintenance["worker-01"]'`.
+
+**5. Piraeus ausrollen:** Erst wenn alle Nodes `r-linstor` haben, die Ordner `snapshot-controller` und `piraeus` nach `main` pushen. Das ApplicationSet `infrastructure` erzeugt die Apps `snapshot-controller-in-cluster` und `piraeus-in-cluster`. In der Piraeus-App sorgen Sync-Waves für die Reihenfolge: zuerst Namespace (PSA `privileged`) und Issuer, dann das Chart, danach die CRs, sobald der Operator läuft.
+
+```sh
+kubectl -n piraeus-datastore get linstorsatellites
+kubectl -n piraeus-datastore exec deploy/linstor-controller -- linstor storage-pool list   # nvme-thin auf allen 5 Nodes
+kubectl get storageclass,volumesnapshotclass
+```
+
+Noch offen: RWX-Volumes (NFS über LINSTOR) und Backups der Snapshots nach S3.
 
 ## Gateway API
 
