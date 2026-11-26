@@ -54,3 +54,9 @@ config:
       secretEnv: DEX_CLIENT_SECRET_GRAFANA
       redirectURIs:
         - https://grafana.k8s.cakiroglu.me/login/generic_oauth
+    - id: wordpress
+      name: WordPress
+      secretEnv: DEX_CLIENT_SECRET_WORDPRESS
+      redirectURIs:
+        # Callback des Plugins OpenID Connect Generic (über admin-ajax.php)
+        - https://wordpress.k8s.cakiroglu.me/wp-admin/admin-ajax.php?action=openid-connect-authorize

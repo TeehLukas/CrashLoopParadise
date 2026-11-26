@@ -1,0 +1,33 @@
+# Zugangsdaten der MariaDB (values.yaml: envFrom/secretKeyRef wordpress-db).
+# Quelle: 1Password-Vault "kubernetes", Item "wordpress" mit den Feldern
+#   db-password        zufälliger String, z.B. openssl rand -hex 32
+#   db-root-password   zufälliger String, z.B. openssl rand -hex 32
+#
+# MariaDB übernimmt die Passwörter nur bei der Erstinitialisierung des leeren Volumes.
+# Spätere Änderungen in 1Password muss man zusätzlich in der Datenbank nachziehen.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: wordpress-db
+  namespace: wordpress
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: wordpress-db
+    template:
+      engineVersion: v2
+      data:
+        MARIADB_PASSWORD: '{{ .dbPassword | trim }}'
+        MARIADB_ROOT_PASSWORD: '{{ .dbRootPassword | trim }}'
+  data:
+    - secretKey: dbPassword
+      remoteRef:
+        key: wordpress/db-password
+    - secretKey: dbRootPassword
+      remoteRef:
+        key: wordpress/db-root-password

@@ -1,0 +1,10 @@
+# WordPress unter https://wordpress.k8s.cakiroglu.me mit MariaDB als Datenbank.
+# Das Bitnami-Chart ist keine Option mehr (Images seit 2025 nicht mehr frei), daher das
+# generische app-template von bjw-s mit den offiziellen Images wordpress und mariadb.
+# OCI-Registry: repoURL ohne Schema, Argo CD zieht das Chart dann per OCI.
+app: wordpress
+namespace: wordpress
+chart:
+  repo: ghcr.io/bjw-s-labs/helm
+  name: app-template
+  version: 5.3.0

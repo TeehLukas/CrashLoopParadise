@@ -1,0 +1,25 @@
+# Client-Secret des Dex-Clients "wordpress" (values.yaml: env OIDC_CLIENT_SECRET).
+# Quelle: 1Password-Vault "kubernetes", Item "dex", Feld wordpress-client-secret
+# (dasselbe Feld nutzt Dex für den Client "wordpress", manifests/dex-secrets.yaml im dex-Ordner).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: wordpress-oidc
+  namespace: wordpress
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  target:
+    name: wordpress-oidc
+    template:
+      engineVersion: v2
+      data:
+        OIDC_CLIENT_SECRET: '{{ .wordpressClientSecret | trim }}'
+  data:
+    - secretKey: wordpressClientSecret
+      remoteRef:
+        key: dex/wordpress-client-secret

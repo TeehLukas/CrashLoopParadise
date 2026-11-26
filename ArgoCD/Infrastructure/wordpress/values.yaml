@@ -1,0 +1,187 @@
+# Helm-Values (app-template) für WordPress und MariaDB.
+# Zugangsdaten der Datenbank: manifests/wordpress-db.yaml (ExternalSecret).
+#
+# Das Image kopiert WordPress nur bei leerem /var/www/html ins Volume. Danach aktualisiert
+# sich WordPress selbst, das Image-Tag zählt also nur für die Erstinstallation und PHP/Apache.
+
+controllers:
+  wordpress:
+    # RWO-Volume, zwei Pods gleichzeitig könnten es nicht einhängen
+    strategy: Recreate
+    initContainers:
+      # Lädt das OIDC-Plugin bei jedem Start in wp-content/mu-plugins (emptyDir). Must-Use-
+      # Plugins sind immer aktiv und nicht über die Oberfläche abschaltbar. Update: Version
+      # und SHA256 anpassen (sha256sum der Zip von downloads.wordpress.org).
+      oidc-plugin:
+        image:
+          repository: docker.io/library/alpine
+          tag: 3.22.2
+        env:
+          PLUGIN_VERSION: 3.11.3
+          PLUGIN_SHA256: 81c009fe8f8f1504b329656d5a41176b5de09febfca4574393889c46387f8a97
+        command: ["/bin/sh", "-ec"]
+        args:
+          - |
+            cd /tmp
+            wget -qO plugin.zip "https://downloads.wordpress.org/plugin/daggerhart-openid-connect-generic.${PLUGIN_VERSION}.zip"
+            echo "${PLUGIN_SHA256}  plugin.zip" | sha256sum -c -
+            unzip -qo plugin.zip -d /mu-plugins
+            cp /loader/oidc-loader.php /mu-plugins/
+    containers:
+      app:
+        image:
+          repository: docker.io/library/wordpress
+          tag: 7.1.3-php8.4-apache
+        env:
+          WORDPRESS_DB_HOST: wordpress-mariadb
+          WORDPRESS_DB_NAME: wordpress
+          WORDPRESS_DB_USER: wordpress
+          WORDPRESS_DB_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: wordpress-db
+                key: MARIADB_PASSWORD
+          # Login über Dex (Client "wordpress") mit dem Plugin OpenID Connect Generic,
+          # das initContainer "oidc-plugin" als Must-Use-Plugin bereitstellt. Konstanten
+          # haben Vorrang vor den Einstellungen in der Datenbank (Settings-Seite gesperrt).
+          OIDC_CLIENT_SECRET:
+            valueFrom:
+              secretKeyRef:
+                name: wordpress-oidc
+                key: OIDC_CLIENT_SECRET
+          WORDPRESS_CONFIG_EXTRA: |
+            define('OIDC_LOGIN_TYPE', 'button');
+            define('OIDC_CLIENT_ID', 'wordpress');
+            define('OIDC_CLIENT_SECRET', getenv('OIDC_CLIENT_SECRET'));
+            define('OIDC_CLIENT_SCOPE', 'openid email profile groups');
+            define('OIDC_ISSUER', 'https://dex.k8s.cakiroglu.me');
+            define('OIDC_ENDPOINT_LOGIN_URL', 'https://dex.k8s.cakiroglu.me/auth');
+            define('OIDC_ENDPOINT_TOKEN_URL', 'https://dex.k8s.cakiroglu.me/token');
+            define('OIDC_ENDPOINT_USERINFO_URL', 'https://dex.k8s.cakiroglu.me/userinfo');
+            define('OIDC_ENDPOINT_JWKS_URL', 'https://dex.k8s.cakiroglu.me/keys');
+            define('OIDC_CREATE_IF_DOES_NOT_EXIST', 1);
+            define('OIDC_LINK_EXISTING_USERS', 1);
+            define('OIDC_REDIRECT_USER_BACK', 1);
+            define('OIDC_REDIRECT_ON_LOGOUT', 1);
+        # TLS endet am cilium-gateway. Das Image setzt HTTPS=on anhand von
+        # X-Forwarded-Proto (wp-config-docker.php), Envoy liefert den Header mit.
+        probes:
+          liveness: &probe
+            enabled: true
+            custom: true
+            spec:
+              tcpSocket:
+                port: 80
+          readiness: *probe
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+
+  mariadb:
+    strategy: Recreate
+    containers:
+      app:
+        image:
+          repository: docker.io/library/mariadb
+          tag: 11.8.8
+        env:
+          MARIADB_DATABASE: wordpress
+          MARIADB_USER: wordpress
+        envFrom:
+          - secretRef:
+              name: wordpress-db
+        probes:
+          liveness: &dbprobe
+            enabled: true
+            custom: true
+            spec:
+              exec:
+                command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+              periodSeconds: 10
+          readiness: *dbprobe
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+
+service:
+  wordpress:
+    controller: wordpress
+    ports:
+      http:
+        port: 80
+  mariadb:
+    controller: mariadb
+    ports:
+      mysql:
+        port: 3306
+
+route:
+  wordpress:
+    hostnames:
+      - wordpress.k8s.cakiroglu.me
+    parentRefs:
+      - name: cilium-gateway
+        namespace: kube-system
+        sectionName: https
+    rules:
+      - backendRefs:
+          - identifier: wordpress
+            port: 80
+
+configMaps:
+  oidc-loader:
+    data:
+      # Must-Use-Plugins in Unterordnern lädt WordPress nicht selbst, daher dieser Loader.
+      # allow_internal_idp: dex.k8s.cakiroglu.me löst auf die private VIP auf, die
+      # SSRF-Sperre des Plugins (wp_safe_remote_*) würde Token- und JWKS-Abruf blockieren.
+      # Dafür gibt es keine Konstante, nur den Filter.
+      oidc-loader.php: |
+        <?php
+        add_filter('openid-connect-generic-settings', function ($settings) {
+            $settings->allow_internal_idp = 1;
+            return $settings;
+        });
+        require_once __DIR__ . '/daggerhart-openid-connect-generic/openid-connect-generic.php';
+
+persistence:
+  mu-plugins:
+    type: emptyDir
+    advancedMounts:
+      wordpress:
+        oidc-plugin:
+          - path: /mu-plugins
+        app:
+          - path: /var/www/html/wp-content/mu-plugins
+            readOnly: true
+  oidc-loader:
+    type: configMap
+    identifier: oidc-loader
+    advancedMounts:
+      wordpress:
+        oidc-plugin:
+          - path: /loader
+            readOnly: true
+  html:
+    type: persistentVolumeClaim
+    storageClass: linstor
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    advancedMounts:
+      wordpress:
+        app:
+          - path: /var/www/html
+  mysql:
+    type: persistentVolumeClaim
+    storageClass: linstor
+    accessMode: ReadWriteOnce
+    size: 5Gi
+    advancedMounts:
+      mariadb:
+        app:
+          - path: /var/lib/mysql
