@@ -1,0 +1,48 @@
+# Helm-Values (app-template) für Excalidraw.
+#
+# Das Image hat außer "latest" keine aktuellen Tags, daher per Digest gepinnt.
+# Update: Digest von "latest" auf Docker Hub (excalidraw/excalidraw) übernehmen.
+
+controllers:
+  excalidraw:
+    containers:
+      app:
+        image:
+          repository: docker.io/excalidraw/excalidraw
+          tag: latest
+          digest: sha256:f7ee194addd607bf831d2af0f0a34463dd4225e426cf35199ef0b12a803398e9
+        probes:
+          liveness: &probe
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /
+                port: 80
+          readiness: *probe
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+
+service:
+  excalidraw:
+    controller: excalidraw
+    ports:
+      http:
+        port: 80
+
+route:
+  excalidraw:
+    hostnames:
+      - draw.k8s.cakiroglu.me
+    parentRefs:
+      - name: cilium-gateway
+        namespace: kube-system
+        sectionName: https
+    rules:
+      - backendRefs:
+          - identifier: excalidraw
+            port: 80

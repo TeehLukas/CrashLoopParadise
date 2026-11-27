@@ -1,0 +1,10 @@
+# Excalidraw (Whiteboard) unter https://draw.k8s.cakiroglu.me (HTTPRoute am cilium-gateway).
+# Reines Frontend ohne Login und Speicher, Zeichnungen liegen im Browser (localStorage).
+# Generisches app-template von bjw-s mit dem offiziellen Image excalidraw/excalidraw.
+# OCI-Registry: repoURL ohne Schema, Argo CD zieht das Chart dann per OCI.
+app: excalidraw
+namespace: excalidraw
+chart:
+  repo: ghcr.io/bjw-s-labs/helm
+  name: app-template
+  version: 5.3.0
